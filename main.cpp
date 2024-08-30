@@ -6,95 +6,157 @@
 
 using namespace std;
 
+class TodoList {
+    private:
+        vector<string> tasks;
+        string path;
 
-vector<string> todo;
+        // helper function to read tasks from file
+        void readFromFile() {
+            ifstream todoFile(path);
+            if (!todoFile.is_open()) {
+                cerr << "Error: unable to open file" << endl;
+                todoFile.close();
+                return;
+            }
 
-//filepath for todo list file
-string user = getlogin();
-string path = {"/home/" + user + "/todo.md"};
+            string line;
 
-void appendList (string task) {
-
-    //create file object
-    fstream todoFile;
-    todoFile.open(path, ios::app);
-
-    todoFile << task << "\n";
-
-    todoFile.close();
-}
-
-void readList () {
-    //create file object
-    string user = getlogin();
-    fstream todoFile(path);
-    
-    // string to hold line before giving to vector
-    string buf;
-
-    //push line to end of vector
-    while (getline(todoFile, buf)){
-        todo.push_back(buf);
-    }
-
-    todoFile.close();
-}
-
-void removeTask (string task) {
-    // remove the task specifed by its string parameter
-   
-    readList();
-
-    // iterator object to move through todo vector
-    vector<string>::iterator iter = todo.begin();
-
-    int index = 0;
-
-    // find and delete task from todo vector
-    while(iter != todo.end()) {
-        if (!todo[index].compare(task)) {
-            iter = todo.erase(iter);
+            while (getline(todoFile, line)) {
+                tasks.push_back(line);
+            }
+            todoFile.close();
         }
-        else {
-            ++iter;
-            index++;
+
+        //helper fuction for writing all tasks to file
+        void writeToFile() {
+            ofstream todoFile(path, ios::trunc);
+
+            if (!todoFile.is_open()) {
+                cerr << "Error: unable to open file" << endl;
+                todoFile.close();
+                return;
+            }
+
+            for (const string &task : tasks) {
+                todoFile << task << endl;
+            }
+            todoFile.close();
         }
-    }
 
-    //delete old to-do file
-    const char* path_ptr = path.c_str();
-    remove(path_ptr);
-    
-    //create file object
-    fstream todoFile;
-    todoFile.open(path, ios::app);
 
-    // write todo list into file
-    for (int index = 0; index < todo.size(); index++) {
+        void appendToFile() {
+            ofstream todoFile(path, ios::app);
+            if (!todoFile.is_open()) {
+                cerr << "Error: unable to open file" << endl;
+                todoFile.close();
+                return;
+            }
+            // appends last item in tasks vector
+            int taskIndex = tasks.size() -1;
+            todoFile << tasks[taskIndex] << endl;
+            todoFile.close();
+        }
 
-        todoFile << todo[index] << endl;
-    }
+        void replaceInFile(string lineToDelete) {
+            ofstream writer(path, ios::trunc);
+            ifstream reader(path);
 
-}
+            if (!writer.is_open()) {
+                cerr << "Error: unable to open file for writing" << endl;
+                return;
+            }
+
+            else if (!reader.is_open()) {
+                cerr << "Error: unable to open file for reading" << endl;
+                return;
+            }
+
+            string line;
+            bool passed = false;
+            while (getline(reader, line)) {
+                if (!(line == lineToDelete)){
+                    writer << line << endl;
+                }
+            }
+
+            writer.close();
+            reader.close();
+
+        }
+
+    public:
+        //constructor for initilizing TodoList object
+        TodoList(const string user) {
+            path = "/home/" + user + "/todo.md";
+            readFromFile();
+        }
+
+        // add a task
+        void addTask (const string task) {
+            tasks.push_back(task);
+            appendToFile();
+        }
+
+        // list all tasks
+        void listTasks () {
+            if (tasks.empty()) {
+                cout << "No tasks found" << endl;
+                return;
+            }
+            for (int index = 0; index < tasks.size(); index++) {
+                cout << index+1 << ". " << tasks.at(index) << endl;
+            }
+        }
+
+        void removeTask (const string task) {
+            readFromFile();
+
+            // iterator object to move through todo vector
+            vector<string>::iterator iter = tasks.begin();
+
+            int index = 0;
+
+            // find and delete task from tasks vector
+            while(iter != tasks.end()) {
+                if (!tasks[index].compare(task)) {
+                    iter = tasks.erase(iter);
+                    replaceInFile(tasks[index]);
+                }
+                else {
+                    ++iter;
+                    index++;
+                }
+            }
+        }
+
+
+};
 
 int main (int argc, char *argv[]) {
-    // vector to hold comandline arguments
-    vector<string> args(argv + 1, argv+argc);
-    
+
     // no arguments
     if (argc == 1) {
         cout << "incorrect usage ('-h' or '--help' for help)" << endl;
-        return 1;
     }
 
+    // vector to hold comandline arguments
+    vector<string> args(argv + 1, argv+argc);
+    const string command = args[0];
+
+    string user = getlogin();
+    TodoList todoList(user);
+
     //help argument
-    else if (!args[0].compare("-h") | !args[0].compare("--help")) {
-        cout << "will add later bb" << endl;
-        return 2;
+    if (command == "-h" | command == "--help") {
+        cout << "Usage:" << endl;
+        cout << "-a <task> : Add a task" << endl;
+        cout << "-l        : List all tasks" << endl;
+        cout << "-r <task> : Remove a task" << endl;
     }
 
     //append 
-    else if (!args[0].compare("-a")) {
+    else if (command == "-a") {
         // check if name of task is provided
         if (args.size() >= 2) {
             
@@ -109,24 +171,17 @@ int main (int argc, char *argv[]) {
                 }
             }
 
-            appendList(nameOfTask);
-            return 0;
+            todoList.addTask(nameOfTask);
         }
         //no name of task provided
         else {
             cout << "incorrect usage, please provide name of task you want to add ('-h' or '--help' for help)";
-            return 3;
         }
     }
 
     //list tasks
     else if (!args[0].compare("-l")) {
-        readList();
-        //print tasks to console
-        for (int i = 0; i < todo.size(); i++) {
-        cout << todo.at(i) << endl;
-        }
-        return 0;
+        todoList.listTasks();
     }
 
     //remove task
@@ -144,8 +199,7 @@ int main (int argc, char *argv[]) {
                     nameOfTask.append(" ");
                 }
             }
-            removeTask(nameOfTask);
-            return 0;
+            todoList.removeTask(nameOfTask);
         }
         //no name of task provided
         else {
@@ -154,5 +208,9 @@ int main (int argc, char *argv[]) {
         }
     }
 
+    else {
+        cout << "Unknown command ('-h' or '--help' for help)" << endl;
+    }
 
+    return 0;
 }
